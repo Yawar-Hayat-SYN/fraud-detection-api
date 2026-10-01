@@ -71,8 +71,9 @@ ID_COL = "TransactionID"
 PRODUCT_COL = "ProductCD"
 TARGET_COL = "isFraud"
 TIME_COL = "TransactionDT"
-# Datetime derived from TIME_COL and TRANSACTION_DT_REFERENCE. Written into the
-# raw Parquet files by ml.add_timestamps, and added by ml.features.time.
+# Datetime derived from TIME_COL and TRANSACTION_DT_REFERENCE by
+# ml.features.time. Always computed, never stored in the raw files, so it can
+# never disagree with the current anchor.
 TIMESTAMP_COL = "timestamp"
 AMT_COL = "TransactionAmt"
 

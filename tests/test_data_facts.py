@@ -22,6 +22,7 @@ import pytest
 
 from ml import config
 from ml.data import load_transactions
+from ml.features.time import dt_to_timestamp
 
 pytestmark = pytest.mark.slow
 
@@ -118,3 +119,29 @@ def test_card1_median_group_size(card1_counts):
 
 def test_card1_singletons(card1_counts):
     assert (card1_counts == 1).sum() == 3_444
+
+
+# --- Train / test boundary ----------------------------------------------------
+
+
+def test_test_set_starts_after_train_ends():
+    """Kaggle's test set is strictly later than train, with a gap of roughly a
+    month. The gap is part of the task: the model predicts a month past
+    anything it has seen, so a validation split carved out of train should
+    leave a similar gap, or validation is an easier problem than the real one.
+    """
+    if not config.TEST_PARQUET.exists():
+        pytest.skip(f"{config.TEST_PARQUET} not found -- run python ml/load_raw.py")
+
+    def time_range(path):
+        return pl.scan_parquet(path).select(
+            pl.col(config.TIME_COL).min().alias("lo"), pl.col(config.TIME_COL).max().alias("hi")
+        ).collect().row(0)
+
+    _, train_end = time_range(config.TRAIN_PARQUET)
+    test_start, _ = time_range(config.TEST_PARQUET)
+
+    assert test_start > train_end, (
+        f"Test starts at {dt_to_timestamp(test_start)}, before train ends at "
+        f"{dt_to_timestamp(train_end)}. The Kaggle split is not temporal."
+    )

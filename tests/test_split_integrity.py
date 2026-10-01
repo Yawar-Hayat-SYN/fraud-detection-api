@@ -14,8 +14,7 @@ Run from the repo root:
 
 import json
 
-import pyarrow.compute as pc
-import pyarrow.parquet as pq
+import polars as pl
 import pytest
 
 from ml.config import ID_COL, SPLIT_PATH, TIME_COL, TRAIN_PARQUET
@@ -38,10 +37,8 @@ def dt_by_id() -> dict[int, int]:
     """
     if not TRAIN_PARQUET.exists():
         pytest.skip(f"{TRAIN_PARQUET} not found -- run python -m ml.load_raw")
-    table = pq.read_table(TRAIN_PARQUET, columns=[ID_COL, TIME_COL])
-    return dict(
-        zip(table.column(ID_COL).to_pylist(), table.column(TIME_COL).to_pylist())
-    )
+    df = pl.scan_parquet(TRAIN_PARQUET).select(ID_COL, TIME_COL).collect()
+    return dict(zip(df[ID_COL].to_list(), df[TIME_COL].to_list()))
 
 
 def test_train_ends_before_val_begins(split, dt_by_id):
