@@ -26,6 +26,12 @@ UNIFORM = "uniform"
 W_ONLY = "w_only"
 NON_W_ONLY = "non_w_only"
 MIXED = "mixed"
+KINDS = (UNIFORM, W_ONLY, NON_W_ONLY, MIXED)
+
+# Keys every entry in the blocks file has. Readers validate against this.
+BLOCK_KEYS = ("columns", "n_columns", "null_rate", "kind", "null_rate_by_product")
+
+REGENERATE_COMMAND = "python -m ml.analysis.null_blocks"
 
 
 def null_mask_hashes(masks: pl.DataFrame) -> dict[str, str]:

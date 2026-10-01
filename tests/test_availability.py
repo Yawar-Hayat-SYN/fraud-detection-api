@@ -8,15 +8,27 @@ import pytest
 from ml import config
 from ml.features.availability import add_availability_flags, get_flag_columns
 
+
+def block(columns: list[str], kind: str) -> dict:
+    """A blocks-file entry. Rates are placeholders; only columns and kind are read."""
+    return {
+        "columns": columns,
+        "n_columns": len(columns),
+        "null_rate": 0.5,
+        "kind": kind,
+        "null_rate_by_product": {"W": 0.5, "C": 0.5},
+    }
+
+
 # One block of each kind, plus a second mixed block. Index in this list is
 # the NN in has_block_NN.
 BLOCKS = [
-    {"columns": ["TransactionID", "ProductCD"], "kind": "uniform"},  # 00
-    {"columns": ["dist1"], "kind": "w_only"},  # 01
-    {"columns": ["DeviceInfo", "id_30"], "kind": "non_w_only"},  # 02
-    {"columns": ["M4", "M5"], "kind": "mixed"},  # 03
-    {"columns": [config.RARE_ID_COL], "kind": "non_w_only"},  # 04
-    {"columns": ["D2"], "kind": "mixed"},  # 05
+    block(["TransactionID", "ProductCD"], "uniform"),  # 00
+    block(["dist1"], "w_only"),  # 01
+    block(["DeviceInfo", "id_30"], "non_w_only"),  # 02
+    block(["M4", "M5"], "mixed"),  # 03
+    block([config.RARE_ID_COL], "non_w_only"),  # 04
+    block(["D2"], "mixed"),  # 05
 ]
 
 
@@ -98,3 +110,30 @@ def test_lazy_and_eager_agree_and_input_unchanged(frame, blocks_path):
 def test_missing_blocks_file_names_generator(frame, tmp_path):
     with pytest.raises(FileNotFoundError, match="python -m ml.analysis.null_blocks"):
         add_availability_flags(frame, tmp_path / "missing.json")
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("", "not valid JSON"),
+        ("{not json", "not valid JSON"),
+        ("[]", "non-empty list"),
+        ('{"columns": ["a"]}', "non-empty list"),
+        (json.dumps([{"columns": ["D2"], "kind": "mixed"}]), "missing keys"),
+        (json.dumps([block(["D2"], "mostly")]), "unknown kind"),
+    ],
+    ids=["empty-file", "truncated", "empty-list", "not-a-list", "old-format", "bad-kind"],
+)
+def test_malformed_blocks_file_raises_instead_of_giving_no_flags(frame, tmp_path, content, message):
+    path = tmp_path / "null_blocks.json"
+    path.write_text(content)
+
+    for call in (lambda: add_availability_flags(frame, path), lambda: get_flag_columns(path)):
+        with pytest.raises(ValueError, match=message) as exc:
+            call()
+        assert "python -m ml.analysis.null_blocks" in str(exc.value)
+
+
+def test_missing_blocks_file_raises_from_get_flag_columns(tmp_path):
+    with pytest.raises(FileNotFoundError, match="python -m ml.analysis.null_blocks"):
+        get_flag_columns(tmp_path / "missing.json")

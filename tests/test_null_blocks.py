@@ -1,10 +1,14 @@
 """Tests for ml.analysis.null_blocks."""
 
+import json
+
 import polars as pl
 import pytest
 
 from ml import config
 from ml.analysis.null_blocks import (
+    BLOCK_KEYS,
+    KINDS,
     MIXED,
     NON_W_ONLY,
     UNIFORM,
@@ -97,3 +101,36 @@ def test_real_transaction_id_block_is_uniform(real_blocks):
 @pytest.mark.slow
 def test_real_device_info_block_is_non_w_only(real_blocks):
     assert block_containing(real_blocks, "DeviceInfo")["kind"] == NON_W_ONLY
+
+
+# --- The committed blocks file --------------------------------------------------
+
+# Spelled out here rather than imported, so changing the schema in code
+# without updating this spec fails a test.
+REQUIRED_KEYS = {"columns", "n_columns", "null_rate", "kind", "null_rate_by_product"}
+
+
+def test_build_null_blocks_writes_the_documented_keys():
+    df = pl.DataFrame({config.PRODUCT_COL: ["W", "C"], "a": [None, 1]})
+
+    for entry in build_null_blocks(df):
+        assert set(entry) == REQUIRED_KEYS == set(BLOCK_KEYS)
+
+
+def test_committed_null_blocks_file_exists_and_is_well_formed():
+    """data/null_blocks.json is committed, so this must pass on a fresh clone.
+
+    ml.features.availability reads it at runtime. Not skipped when missing:
+    a missing file is exactly the failure this test is here to catch.
+    """
+    path = config.NULL_BLOCKS_PATH
+    assert path.exists(), f"{path} is missing. Run: python -m ml.analysis.null_blocks, then commit it."
+
+    blocks = json.loads(path.read_text())
+
+    assert isinstance(blocks, list) and blocks, "expected a non-empty list of blocks"
+    for i, entry in enumerate(blocks):
+        missing = REQUIRED_KEYS - set(entry)
+        assert not missing, f"block {i} is missing {sorted(missing)}"
+        assert entry["kind"] in KINDS, f"block {i} has unknown kind {entry['kind']!r}"
+        assert entry["n_columns"] == len(entry["columns"]), f"block {i}: n_columns != len(columns)"
