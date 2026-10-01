@@ -39,9 +39,13 @@ NULL_BLOCKS_PATH = PROCESSED_DIR / "null_blocks.json"
 TRAIN_PARQUET = RAW_DIR / "train.parquet"
 TEST_PARQUET = RAW_DIR / "test.parquet"
 
+# Kaggle competition the raw CSVs come from.
+KAGGLE_COMPETITION = "ieee-fraud-detection"
+
 # --- Splits -----------------------------------------------------------------
 
 SPLIT_VERSION = "v1"
+SPLIT_PATH = SPLITS_DIR / f"{SPLIT_VERSION}.json"
 
 # --- Columns ----------------------------------------------------------------
 
@@ -49,6 +53,7 @@ SPLIT_VERSION = "v1"
 UID_COMPONENTS = ["card1", "addr1", "D1n"]
 UID_COARSE_COMPONENTS = ["card1", "addr1"]
 
+ID_COL = "TransactionID"
 PRODUCT_COL = "ProductCD"
 TARGET_COL = "isFraud"
 TIME_COL = "TransactionDT"
