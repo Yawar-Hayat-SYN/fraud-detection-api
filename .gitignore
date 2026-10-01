@@ -219,6 +219,7 @@ __marimo__/
 
 data/*
 !data/splits/
+!data/null_blocks.json
 .env
 *.pkl
 .venv/

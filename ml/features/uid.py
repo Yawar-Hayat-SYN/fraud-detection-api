@@ -16,7 +16,7 @@ from typing import TypeVar
 
 import polars as pl
 
-from ml.config import UID_COARSE_COMPONENTS, UID_COMPONENTS
+from ml.config import UID_COARSE_COL, UID_COARSE_COMPONENTS, UID_COL, UID_COMPONENTS
 
 Frame = TypeVar("Frame", pl.DataFrame, pl.LazyFrame)
 
@@ -49,7 +49,7 @@ def add_uid(df: Frame) -> Frame:
 
     D1n comes from ml.features.time.add_time_features, which must run first.
     """
-    return df.with_columns(_null_safe_key(UID_COMPONENTS).alias("uid"))
+    return df.with_columns(_null_safe_key(UID_COMPONENTS).alias(UID_COL))
 
 
 def add_uid_coarse(df: Frame) -> Frame:
@@ -57,7 +57,7 @@ def add_uid_coarse(df: Frame) -> Frame:
 
     A fallback for rows where D1n is missing and the full UID can't be built.
     """
-    return df.with_columns(_null_safe_key(UID_COARSE_COMPONENTS).alias("uid_coarse"))
+    return df.with_columns(_null_safe_key(UID_COARSE_COMPONENTS).alias(UID_COARSE_COL))
 
 
 def add_uid_tier(df: Frame) -> Frame:
@@ -67,9 +67,9 @@ def add_uid_tier(df: Frame) -> Frame:
     first.
     """
     return df.with_columns(
-        pl.when(pl.col("uid").is_not_null())
+        pl.when(pl.col(UID_COL).is_not_null())
         .then(pl.lit("full"))
-        .when(pl.col("uid_coarse").is_not_null())
+        .when(pl.col(UID_COARSE_COL).is_not_null())
         .then(pl.lit("coarse"))
         .otherwise(pl.lit("none"))
         .alias("uid_tier")

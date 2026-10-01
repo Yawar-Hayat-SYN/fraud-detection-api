@@ -10,51 +10,56 @@ meaningless unless someone can reproduce the exact rows you trained on.
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
-import pyarrow.compute as pc
-import pyarrow.parquet as pq
+import polars as pl
 
-from ml.constants import ID_COLUMN, RAW_TIME_COLUMN, TARGET_COLUMN
+from ml.config import (
+    ID_COL,
+    SPLIT_PATH,
+    SPLIT_VERSION,
+    TARGET_COL,
+    TIME_COL,
+    TRAIN_PARQUET,
+)
+from ml.features.time import dt_to_timestamp
 
-TRAIN_PATH = Path("data/raw/train.parquet")
-SPLIT_DIR = Path("data/splits")
-SPLIT_VERSION = "v1"
 TRAIN_FRACTION = 0.80
 
 
 def main() -> None:
-    if not TRAIN_PATH.exists():
-        raise SystemExit(f"Missing {TRAIN_PATH}. Run ml/load_raw.py first.")
+    if not TRAIN_PARQUET.exists():
+        raise SystemExit(f"Missing {TRAIN_PARQUET}. Run ml/load_raw.py first.")
 
-    # Only three columns are needed, so read only three. On a 434-column file
-    # this is the difference between ~20 MB and several GB.
-    table = pq.read_table(
-        TRAIN_PATH, columns=[ID_COLUMN, RAW_TIME_COLUMN, TARGET_COLUMN, "timestamp"]
-    )
+    # Only three columns are needed, so only three are read. On a 434-column
+    # file this is the difference between ~20 MB and several GB.
+    df = pl.scan_parquet(TRAIN_PARQUET).select(ID_COL, TIME_COL, TARGET_COL).collect()
 
-    dt = table.column(RAW_TIME_COLUMN)
-    cutoff = pc.quantile(dt, q=TRAIN_FRACTION).to_pylist()[0]
+    # Linear interpolation, so the cutoff can fall between two TransactionDT
+    # values and have a fractional part. Rows are compared against that exact
+    # value, not a rounded one: rounding would move rows sitting at
+    # floor(cutoff) from train to val.
+    cutoff = df[TIME_COL].quantile(TRAIN_FRACTION, interpolation="linear")
 
-    is_train = pc.less(dt, cutoff)
-    train_rows = table.filter(is_train)
-    val_rows = table.filter(pc.invert(is_train))
+    is_train = pl.col(TIME_COL) < cutoff
+    # filter keeps the file's row order, which the ID lists below depend on.
+    train_rows = df.filter(is_train)
+    val_rows = df.filter(~is_train)
 
-    def summarise(t) -> dict:
-        n = t.num_rows
-        frauds = pc.sum(t.column(TARGET_COLUMN)).as_py()
+    def summarise(t: pl.DataFrame) -> dict:
+        n = t.height
+        frauds = t[TARGET_COL].sum()
         return {
             "rows": n,
             "frauds": int(frauds),
             "fraud_rate": round(frauds / n, 5),
-            "first_timestamp": pc.min(t.column("timestamp")).as_py().isoformat(),
-            "last_timestamp": pc.max(t.column("timestamp")).as_py().isoformat(),
+            "first_timestamp": dt_to_timestamp(t[TIME_COL].min()).isoformat(),
+            "last_timestamp": dt_to_timestamp(t[TIME_COL].max()).isoformat(),
         }
 
     train_stats = summarise(train_rows)
     val_stats = summarise(val_rows)
 
-    cutoff_dt = pc.min(val_rows.column("timestamp")).as_py()
+    cutoff_dt = dt_to_timestamp(val_rows[TIME_COL].min())
 
     split = {
         "version": SPLIT_VERSION,
@@ -65,12 +70,12 @@ def main() -> None:
         "cutoff_datetime": cutoff_dt.isoformat(),
         "train": train_stats,
         "val": val_stats,
-        "train_ids": train_rows.column(ID_COLUMN).to_pylist(),
-        "val_ids": val_rows.column(ID_COLUMN).to_pylist(),
+        "train_ids": train_rows[ID_COL].to_list(),
+        "val_ids": val_rows[ID_COL].to_list(),
     }
 
-    SPLIT_DIR.mkdir(parents=True, exist_ok=True)
-    out = SPLIT_DIR / f"{SPLIT_VERSION}.json"
+    out = SPLIT_PATH
+    out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w") as f:
         json.dump(split, f, indent=2)
 

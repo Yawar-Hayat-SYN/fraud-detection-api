@@ -21,21 +21,38 @@ from typing import TypeVar
 import polars as pl
 
 from ml import config
-from ml.analysis.null_blocks import MIXED
+from ml.analysis.null_blocks import BLOCK_KEYS, KINDS, MIXED, REGENERATE_COMMAND
 
 Frame = TypeVar("Frame", pl.DataFrame, pl.LazyFrame)
 
 
 def _read_blocks(blocks_path: Path | None) -> list[dict]:
+    """Load and validate the blocks file. Raises rather than returning nothing.
+
+    A missing, empty or malformed file would otherwise just produce zero
+    flags, and a model trained without them looks like it works.
+    """
     path = blocks_path if blocks_path is not None else config.NULL_BLOCKS_PATH
+    fix = f"Regenerate it from the repo root with:\n    {REGENERATE_COMMAND}"
+
     if not path.exists():
-        raise FileNotFoundError(
-            f"Null blocks file not found: {path}\n"
-            f"Generate it from the repo root with:\n"
-            f"    python -m ml.analysis.null_blocks"
-        )
-    with open(path) as f:
-        return json.load(f)
+        raise FileNotFoundError(f"Null blocks file not found: {path}\n{fix}")
+
+    try:
+        with open(path) as f:
+            blocks = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Null blocks file is not valid JSON: {path} ({exc})\n{fix}") from exc
+
+    if not isinstance(blocks, list) or not blocks:
+        raise ValueError(f"Null blocks file must be a non-empty list of blocks: {path}\n{fix}")
+    for i, block in enumerate(blocks):
+        missing = [k for k in BLOCK_KEYS if not isinstance(block, dict) or k not in block]
+        if missing:
+            raise ValueError(f"Block {i} in {path} is missing keys {missing}\n{fix}")
+        if block["kind"] not in KINDS:
+            raise ValueError(f"Block {i} in {path} has unknown kind {block['kind']!r}\n{fix}")
+    return blocks
 
 
 def _flag_name(block_index: int) -> str:
@@ -55,6 +72,11 @@ def _flagged_blocks(blocks: list[dict]) -> dict[str, str]:
         for i, block in enumerate(blocks)
         if block["kind"] == MIXED
     }
+
+
+def get_source_columns(blocks_path: Path | None = None) -> list[str]:
+    """Raw columns add_availability_flags reads, so callers can project to them."""
+    return [*_flagged_blocks(_read_blocks(blocks_path)).values(), config.RARE_ID_COL]
 
 
 def get_flag_columns(blocks_path: Path | None = None) -> list[str]:

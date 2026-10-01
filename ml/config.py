@@ -13,13 +13,24 @@ from pathlib import Path
 
 # --- Time -------------------------------------------------------------------
 
-# TransactionDT is a count of seconds from a reference point the dataset never
-# states. This anchor is therefore ARBITRARY: only relative time (differences
-# between two TransactionDT values) carries meaning. Do not build features that
-# assume real calendar dates (holidays, weekdays, month-end).
+# TransactionDT in the IEEE-CIS dataset is a count of seconds from an origin
+# Kaggle never published. This anchor is ARBITRARY -- the community guess is
+# somewhere around December 2017, but it was never confirmed.
 #
-# Must stay equal to the value the committed splits were generated with, or
-# their human-readable cutoff dates stop matching.
+# It does not matter. Every quantity the model uses is a DIFFERENCE between
+# two times: seconds since a user's previous transaction, count of
+# transactions in the last hour, whether a row falls before the split cutoff.
+# Shift every timestamp by the same amount and all of those are unchanged.
+#
+# What DOES matter is that this value never changes and is never redefined
+# elsewhere. If feature-building uses one anchor and scoring uses another,
+# nothing crashes -- the model just quietly gets worse. Define it here, import
+# it everywhere. It must also stay equal to the value the committed splits
+# were generated with, or their human-readable cutoff dates stop matching.
+#
+# Corollary: do not build calendar features that assume real dates (holidays,
+# Black Friday, month-end). The offset is probably wrong, so those would land
+# on the wrong days.
 TRANSACTION_DT_REFERENCE = datetime(2017, 12, 1)
 
 SECONDS_PER_DAY = 86400
@@ -49,6 +60,9 @@ SPLIT_PATH = SPLITS_DIR / f"{SPLIT_VERSION}.json"
 
 # --- Columns ----------------------------------------------------------------
 
+# Column names used across modules, so a typo is an ImportError rather than a
+# silently empty result.
+
 # Columns that together approximate a single cardholder identity.
 UID_COMPONENTS = ["card1", "addr1", "D1n"]
 UID_COARSE_COMPONENTS = ["card1", "addr1"]
@@ -57,7 +71,15 @@ ID_COL = "TransactionID"
 PRODUCT_COL = "ProductCD"
 TARGET_COL = "isFraud"
 TIME_COL = "TransactionDT"
+# Datetime derived from TIME_COL and TRANSACTION_DT_REFERENCE by
+# ml.features.time. Always computed, never stored in the raw files, so it can
+# never disagree with the current anchor.
+TIMESTAMP_COL = "timestamp"
 AMT_COL = "TransactionAmt"
+D1_COL = "D1"
+CARD_COL = "card1"
+UID_COL = "uid"
+UID_COARSE_COL = "uid_coarse"
 
 # ProductCD value that, unlike every other product, has no identity-table data.
 W_PRODUCT = "W"
@@ -81,6 +103,12 @@ RARE_ID_FLAG = "has_rare_id_block"
 # Look-back windows for ml.features.aggregates, as name -> seconds. Each name
 # becomes a column suffix, e.g. uid_txn_count_1h.
 AGG_WINDOWS = {"1h": 3600, "24h": SECONDS_PER_DAY, "7d": 7 * SECONDS_PER_DAY}
+
+# Entities ml.pipeline aggregates over, finest first. The full UID is precise
+# but sparse (median group size 1, so most UIDs have no history); raw card1 is
+# dense but coarse (13,553 values over 590,540 rows -- a card fingerprint, not
+# an individual card). uid_coarse sits between. The model needs all three.
+AGG_ENTITIES = [UID_COL, UID_COARSE_COL, CARD_COL]
 
 # --- Evaluation -------------------------------------------------------------
 

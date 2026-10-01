@@ -1,17 +1,40 @@
-"""Time features derived from TransactionDT.
+"""Time features derived from TransactionDT, and TransactionDT conversions.
+
+Every conversion between TransactionDT and a datetime in this project goes
+through here. Do not inline the arithmetic anywhere else -- see the note on
+TRANSACTION_DT_REFERENCE in ml.config about why.
 
 TransactionDT's origin is arbitrary (see ml.config), so timestamp, hour and
 dayofweek are only meaningful relative to each other, not as real calendar
 values. day and D1n are pure offsets and do not depend on the anchor at all.
 """
 
+from datetime import datetime, timedelta
 from typing import TypeVar
 
 import polars as pl
 
-from ml.config import SECONDS_PER_DAY, TIME_COL, TRANSACTION_DT_REFERENCE
+from ml.config import D1_COL, SECONDS_PER_DAY, TIME_COL, TIMESTAMP_COL, TRANSACTION_DT_REFERENCE
 
 Frame = TypeVar("Frame", pl.DataFrame, pl.LazyFrame)
+
+
+def dt_to_timestamp(transaction_dt: int | float) -> datetime:
+    """Convert a single raw TransactionDT value to a datetime.
+
+    >>> dt_to_timestamp(86400)
+    datetime.datetime(2017, 12, 2, 0, 0)
+    """
+    return TRANSACTION_DT_REFERENCE + timedelta(seconds=float(transaction_dt))
+
+
+def timestamp_to_dt(ts: datetime) -> float:
+    """Convert a datetime back to the raw TransactionDT scale.
+
+    Needed when you want to express a split cutoff as a readable date but
+    filter on the raw column.
+    """
+    return (ts - TRANSACTION_DT_REFERENCE).total_seconds()
 
 
 def add_time_features(df: Frame) -> Frame:
@@ -35,9 +58,9 @@ def add_time_features(df: Frame) -> Frame:
 
     return df.with_columns(
         day.alias("day"),
-        timestamp.alias("timestamp"),
+        timestamp.alias(TIMESTAMP_COL),
         timestamp.dt.hour().alias("hour"),
         (timestamp.dt.weekday() - 1).alias("dayofweek"),
         # Plain subtraction propagates nulls; no fill_null / fill_nan here.
-        (day - pl.col("D1")).alias("D1n"),
+        (day - pl.col(D1_COL)).alias("D1n"),
     )
