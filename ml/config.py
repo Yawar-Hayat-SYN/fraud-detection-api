@@ -76,6 +76,10 @@ TIME_COL = "TransactionDT"
 # never disagree with the current anchor.
 TIMESTAMP_COL = "timestamp"
 AMT_COL = "TransactionAmt"
+D1_COL = "D1"
+CARD_COL = "card1"
+UID_COL = "uid"
+UID_COARSE_COL = "uid_coarse"
 
 # ProductCD value that, unlike every other product, has no identity-table data.
 W_PRODUCT = "W"
@@ -99,6 +103,12 @@ RARE_ID_FLAG = "has_rare_id_block"
 # Look-back windows for ml.features.aggregates, as name -> seconds. Each name
 # becomes a column suffix, e.g. uid_txn_count_1h.
 AGG_WINDOWS = {"1h": 3600, "24h": SECONDS_PER_DAY, "7d": 7 * SECONDS_PER_DAY}
+
+# Entities ml.pipeline aggregates over, finest first. The full UID is precise
+# but sparse (median group size 1, so most UIDs have no history); raw card1 is
+# dense but coarse (13,553 values over 590,540 rows -- a card fingerprint, not
+# an individual card). uid_coarse sits between. The model needs all three.
+AGG_ENTITIES = [UID_COL, UID_COARSE_COL, CARD_COL]
 
 # --- Evaluation -------------------------------------------------------------
 

@@ -74,6 +74,11 @@ def _flagged_blocks(blocks: list[dict]) -> dict[str, str]:
     }
 
 
+def get_source_columns(blocks_path: Path | None = None) -> list[str]:
+    """Raw columns add_availability_flags reads, so callers can project to them."""
+    return [*_flagged_blocks(_read_blocks(blocks_path)).values(), config.RARE_ID_COL]
+
+
 def get_flag_columns(blocks_path: Path | None = None) -> list[str]:
     """Names of the flags add_availability_flags will add, in order."""
     return [*_flagged_blocks(_read_blocks(blocks_path)), config.RARE_ID_FLAG]
