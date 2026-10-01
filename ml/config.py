@@ -57,6 +57,7 @@ ID_COL = "TransactionID"
 PRODUCT_COL = "ProductCD"
 TARGET_COL = "isFraud"
 TIME_COL = "TransactionDT"
+AMT_COL = "TransactionAmt"
 
 # ProductCD value that, unlike every other product, has no identity-table data.
 W_PRODUCT = "W"
@@ -74,6 +75,12 @@ NULL_RATE_HIGH = 0.99
 # product. Its values are noise; only whether it is present carries signal.
 RARE_ID_COL = "id_21"
 RARE_ID_FLAG = "has_rare_id_block"
+
+# --- Entity aggregates -----------------------------------------------------
+
+# Look-back windows for ml.features.aggregates, as name -> seconds. Each name
+# becomes a column suffix, e.g. uid_txn_count_1h.
+AGG_WINDOWS = {"1h": 3600, "24h": SECONDS_PER_DAY, "7d": 7 * SECONDS_PER_DAY}
 
 # --- Evaluation -------------------------------------------------------------
 
