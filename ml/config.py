@@ -35,7 +35,7 @@ RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 SPLITS_DIR = DATA_DIR / "splits"
 
-NULL_BLOCKS_PATH = PROCESSED_DIR / "null_blocks.json"
+NULL_BLOCKS_PATH = DATA_DIR / "null_blocks.json"
 TRAIN_PARQUET = RAW_DIR / "train.parquet"
 TEST_PARQUET = RAW_DIR / "test.parquet"
 
@@ -57,3 +57,13 @@ ID_COL = "TransactionID"
 PRODUCT_COL = "ProductCD"
 TARGET_COL = "isFraud"
 TIME_COL = "TransactionDT"
+
+# ProductCD value that, unlike every other product, has no identity-table data.
+W_PRODUCT = "W"
+
+# --- Null-block analysis ----------------------------------------------------
+
+# A null rate below LOW counts as "always present", above HIGH as "always
+# blank". Used to classify null blocks by how they vary across products.
+NULL_RATE_LOW = 0.01
+NULL_RATE_HIGH = 0.99
