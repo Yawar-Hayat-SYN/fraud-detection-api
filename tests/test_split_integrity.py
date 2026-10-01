@@ -13,16 +13,12 @@ Run from the repo root:
 """
 
 import json
-from pathlib import Path
 
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import pytest
 
-from ml.constants import ID_COLUMN, RAW_TIME_COLUMN
-
-SPLIT_PATH = Path("data/splits/v1.json")
-TRAIN_PATH = Path("data/raw/train.parquet")
+from ml.config import ID_COL, SPLIT_PATH, TIME_COL, TRAIN_PARQUET
 
 
 @pytest.fixture(scope="module")
@@ -40,11 +36,11 @@ def dt_by_id() -> dict[int, int]:
     Module-scoped so the Parquet file is read once for the whole test module
     rather than once per test.
     """
-    if not TRAIN_PATH.exists():
-        pytest.skip(f"{TRAIN_PATH} not found -- run python -m ml.load_raw")
-    table = pq.read_table(TRAIN_PATH, columns=[ID_COLUMN, RAW_TIME_COLUMN])
+    if not TRAIN_PARQUET.exists():
+        pytest.skip(f"{TRAIN_PARQUET} not found -- run python -m ml.load_raw")
+    table = pq.read_table(TRAIN_PARQUET, columns=[ID_COL, TIME_COL])
     return dict(
-        zip(table.column(ID_COLUMN).to_pylist(), table.column(RAW_TIME_COLUMN).to_pylist())
+        zip(table.column(ID_COL).to_pylist(), table.column(TIME_COL).to_pylist())
     )
 
 

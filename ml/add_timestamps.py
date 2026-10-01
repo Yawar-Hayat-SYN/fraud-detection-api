@@ -13,15 +13,18 @@ in Arrow's own memory format, append a computed column, and write it back.
 import gc
 import sys
 from datetime import timedelta
-from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from ml.constants import TRANSACTION_DT_REFERENCE
-
-RAW_DIR = Path("data/raw")
+from ml.config import (
+    RAW_DIR,
+    SECONDS_PER_DAY,
+    TIME_COL,
+    TIMESTAMP_COL,
+    TRANSACTION_DT_REFERENCE,
+)
 
 
 def add_timestamps(name: str) -> dict:
@@ -37,16 +40,16 @@ def add_timestamps(name: str) -> dict:
 
     table = pq.read_table(path)
 
-    if "timestamp" in table.column_names:
-        print(f"  {name}: timestamp column already present, replacing it")
-        table = table.drop(["timestamp"])
+    if TIMESTAMP_COL in table.column_names:
+        print(f"  {name}: {TIMESTAMP_COL} column already present, replacing it")
+        table = table.drop([TIMESTAMP_COL])
 
-    seconds = table.column("TransactionDT")
+    seconds = table.column(TIME_COL)
     durations = pc.cast(seconds, pa.duration("s"))
     origin = pa.scalar(TRANSACTION_DT_REFERENCE, type=pa.timestamp("s"))
     timestamps = pc.add(origin, durations)
 
-    table = table.append_column("timestamp", timestamps)
+    table = table.append_column(TIMESTAMP_COL, timestamps)
     pq.write_table(table, path, compression="snappy")
 
     lo = pc.min(timestamps).as_py()
@@ -56,7 +59,7 @@ def add_timestamps(name: str) -> dict:
     del table, timestamps, durations, seconds
     gc.collect()
 
-    print(f"  {name}: wrote timestamp column, {rows:,} rows")
+    print(f"  {name}: wrote {TIMESTAMP_COL} column, {rows:,} rows")
     return {"min": lo, "max": hi, "rows": rows}
 
 
@@ -81,7 +84,7 @@ def verify_split(train: dict, test: dict) -> None:
         print("The split is not temporal. Stop and investigate before modelling.")
         return
 
-    gap_days = (test["min"] - train["max"]).total_seconds() / 86_400
+    gap_days = (test["min"] - train["max"]).total_seconds() / SECONDS_PER_DAY
     print(f"Test begins {gap_days:.0f} days after train ends. No overlap.")
     print()
     print("That gap is part of the task: the model is not predicting tomorrow,")

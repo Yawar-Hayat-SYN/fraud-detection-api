@@ -1,14 +1,15 @@
 """Conversions between the dataset's raw TransactionDT and real datetimes.
 
 Every time conversion in this project goes through here. Do not inline the
-arithmetic anywhere else -- see the note in constants.py about why.
+arithmetic anywhere else -- see the note on TRANSACTION_DT_REFERENCE in
+config.py about why.
 """
 
 from datetime import datetime, timedelta
 
 import pandas as pd
 
-from ml.constants import TRANSACTION_DT_REFERENCE
+from ml.config import TIME_COL, TIMESTAMP_COL, TRANSACTION_DT_REFERENCE
 
 
 def dt_to_timestamp(transaction_dt: int | float) -> datetime:
@@ -36,16 +37,14 @@ def add_timestamp_column(df: pd.DataFrame) -> pd.DataFrame:
     -- on 590k rows the difference is seconds versus minutes.
     """
     df = df.copy()
-    df["timestamp"] = TRANSACTION_DT_REFERENCE + pd.to_timedelta(
-        df["TransactionDT"], unit="s"
-    )
+    df[TIMESTAMP_COL] = TRANSACTION_DT_REFERENCE + pd.to_timedelta(df[TIME_COL], unit="s")
     return df
 
 
 def describe_range(df: pd.DataFrame, label: str) -> dict:
     """Print and return the time range of a frame. Used for the sanity check."""
-    lo = df["timestamp"].min()
-    hi = df["timestamp"].max()
+    lo = df[TIMESTAMP_COL].min()
+    hi = df[TIMESTAMP_COL].max()
     span = (hi - lo).days
 
     print(f"{label}:")

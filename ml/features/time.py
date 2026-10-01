@@ -9,7 +9,7 @@ from typing import TypeVar
 
 import polars as pl
 
-from ml.config import SECONDS_PER_DAY, TIME_COL, TRANSACTION_DT_REFERENCE
+from ml.config import SECONDS_PER_DAY, TIME_COL, TIMESTAMP_COL, TRANSACTION_DT_REFERENCE
 
 Frame = TypeVar("Frame", pl.DataFrame, pl.LazyFrame)
 
@@ -35,7 +35,7 @@ def add_time_features(df: Frame) -> Frame:
 
     return df.with_columns(
         day.alias("day"),
-        timestamp.alias("timestamp"),
+        timestamp.alias(TIMESTAMP_COL),
         timestamp.dt.hour().alias("hour"),
         (timestamp.dt.weekday() - 1).alias("dayofweek"),
         # Plain subtraction propagates nulls; no fill_null / fill_nan here.
