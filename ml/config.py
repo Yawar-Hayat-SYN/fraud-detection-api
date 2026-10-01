@@ -74,3 +74,11 @@ NULL_RATE_HIGH = 0.99
 # product. Its values are noise; only whether it is present carries signal.
 RARE_ID_COL = "id_21"
 RARE_ID_FLAG = "has_rare_id_block"
+
+# --- Evaluation -------------------------------------------------------------
+
+# Defaults for ml.metrics.evaluate. The review budget is the share of
+# transactions the fraud team can manually review; set both to the real
+# operating point once it is known.
+REVIEW_BUDGET = 0.01
+TARGET_FPR = 0.01
