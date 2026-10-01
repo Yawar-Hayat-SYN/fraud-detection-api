@@ -67,3 +67,10 @@ W_PRODUCT = "W"
 # blank". Used to classify null blocks by how they vary across products.
 NULL_RATE_LOW = 0.01
 NULL_RATE_HIGH = 0.99
+
+# --- Availability flags -----------------------------------------------------
+
+# id_21 is present on ~0.9% of rows with 1.6-2.0x fraud lift within every
+# product. Its values are noise; only whether it is present carries signal.
+RARE_ID_COL = "id_21"
+RARE_ID_FLAG = "has_rare_id_block"
