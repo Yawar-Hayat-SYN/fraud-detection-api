@@ -50,6 +50,9 @@ NULL_BLOCKS_PATH = DATA_DIR / "null_blocks.json"
 TRAIN_PARQUET = RAW_DIR / "train.parquet"
 TEST_PARQUET = RAW_DIR / "test.parquet"
 
+# models/{model_version}/model.txt and metadata.json. Only metadata is in git.
+MODELS_DIR = REPO_ROOT / "models"
+
 # Kaggle competition the raw CSVs come from.
 KAGGLE_COMPETITION = "ieee-fraud-detection"
 
@@ -109,6 +112,42 @@ AGG_WINDOWS = {"1h": 3600, "24h": SECONDS_PER_DAY, "7d": 7 * SECONDS_PER_DAY}
 # dense but coarse (13,553 values over 590,540 rows -- a card fingerprint, not
 # an individual card). uid_coarse sits between. The model needs all three.
 AGG_ENTITIES = [UID_COL, UID_COARSE_COL, CARD_COL]
+
+# --- Training ---------------------------------------------------------------
+
+# Low-cardinality string columns, passed to LightGBM as categorical features.
+# Raw columns are carried through ml.pipeline into the features file;
+# uid_tier is derived there.
+CATEGORICAL_RAW_COLS = ["ProductCD", "card4", "card6", "DeviceType", *(f"M{i}" for i in range(1, 10))]
+CATEGORICAL_COLS = [*CATEGORICAL_RAW_COLS, "uid_tier"]
+
+# Never model inputs:
+# - TransactionID and isFraud: an identifier and the label.
+# - uid, uid_coarse: raw entity keys, near-unique strings. Their point-in-time
+#   aggregates stay; the keys themselves would let the model memorise entities.
+# - TransactionDT, day, timestamp: absolute time. Every validation and
+#   production row lies beyond the training range, so splits on these learn
+#   drift, not fraud. hour and dayofweek are relative and stay.
+NON_FEATURE_COLS = [ID_COL, TARGET_COL, UID_COL, UID_COARSE_COL, TIME_COL, "day", TIMESTAMP_COL]
+
+# Fixed baseline hyperparameters. No tuning: this is a baseline, not a
+# submission. Seeded and deterministic so a rerun reproduces the model.
+LGBM_PARAMS = {
+    "objective": "binary",
+    "learning_rate": 0.05,
+    "num_leaves": 63,
+    "min_child_samples": 100,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 1,
+    "lambda_l2": 1.0,
+    "seed": 42,
+    "deterministic": True,
+    "force_col_wise": True,
+    "num_threads": 4,
+    "verbose": -1,
+}
+LGBM_NUM_BOOST_ROUND = 500
 
 # --- Evaluation -------------------------------------------------------------
 

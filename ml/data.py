@@ -98,3 +98,22 @@ def load_transactions(
         lf = lf.filter(pl.col(config.ID_COL).is_in(load_split_ids(split)))
 
     return lf if lazy else lf.collect()
+
+
+def features_path(split: Split) -> Path:
+    """Where ml.pipeline writes, and load_features reads, a split's features."""
+    return config.PROCESSED_DIR / f"{split}_features.parquet"
+
+
+def load_features(split: Split, lazy: bool = False) -> pl.DataFrame | pl.LazyFrame:
+    """Read the feature file ml.pipeline wrote for a split."""
+    _check_split_name(split)
+    path = features_path(split)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Features not found: {path}\n"
+            f"Build them from the repo root with:\n"
+            f"    python -m ml.pipeline --split {split}"
+        )
+    lf = pl.scan_parquet(path)
+    return lf if lazy else lf.collect()

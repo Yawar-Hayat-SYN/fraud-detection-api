@@ -32,10 +32,12 @@ def write_dataset(root, train_only: bool = False) -> None:
     card = rng.integers(0, 20, n)
     first_day = {c: int(rng.integers(0, 30)) for c in range(20)}
     day = dt // 86_400
+    card4 = rng.choice(["visa", "mastercard", "discover"], n)
     df = pl.DataFrame(
         {
             config.ID_COL: np.arange(n) + 1_000,
-            config.TARGET_COL: (rng.random(n) < 0.1).astype(np.int64),
+            # Planted signal, so a model trained on this has something to learn.
+            config.TARGET_COL: (rng.random(n) < np.where(card4 == "discover", 0.6, 0.05)).astype(np.int64),
             config.PRODUCT_COL: rng.choice(["W", "C", "H"], n),
             config.TIME_COL: dt,
             config.AMT_COL: rng.gamma(2, 50, n).round(2),
@@ -45,6 +47,10 @@ def write_dataset(root, train_only: bool = False) -> None:
             "addr1": [None if c == 0 else float(100 + c % 3) for c in card],
             "M4": [None if x < 0.3 else "M0" for x in rng.random(n)],
             config.RARE_ID_COL: [None if x < 0.9 else 1.0 for x in rng.random(n)],
+            "card4": card4,
+            "card6": rng.choice(["debit", "credit"], n),
+            "DeviceType": [None if x < 0.5 else ("mobile" if x < 0.7 else "desktop") for x in rng.random(n)],
+            **{f"M{i}": [None if x < 0.3 else ("T" if x < 0.7 else "F") for x in rng.random(n)] for i in range(1, 10) if i != 4},
             "V1": rng.random(n),  # a raw column no stage needs
         }
     )
