@@ -220,6 +220,11 @@ __marimo__/
 data/*
 !data/splits/
 !data/null_blocks.json
+
+# Model binaries stay local; each version's metadata.json is committed.
+models/**
+!models/**/
+!models/**/metadata.json
 .env
 *.pkl
 .venv/

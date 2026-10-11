@@ -36,30 +36,61 @@ def test_shared_null_pattern_forms_one_block():
 
     blocks = build_null_blocks(df)
 
-    assert len(blocks) == 2
-    assert sorted(sorted(b["columns"]) for b in blocks) == [
-        ["ProductCD", "c"],
-        ["a", "b"],
+    assert [(b["name"], b["columns"]) for b in blocks] == [
+        ("block_ProductCD", ["ProductCD", "c"]),
+        ("block_a", ["a", "b"]),
     ]
-    ab = next(b for b in blocks if "a" in b["columns"])
+    ab = blocks[1]
     assert ab["n_columns"] == 2
     assert ab["null_rate"] == 0.5
     assert ab["null_rate_by_product"] == {"C": 0.0, "H": 1.0, "W": 0.5}
 
 
-def test_block_order_does_not_depend_on_column_position():
-    """Reordering columns changes nothing but block order."""
-    df = pl.DataFrame(
-        {config.PRODUCT_COL: ["W", "C"], "a": [None, 1], "b": [None, 2], "c": [1, None]}
+def order_test_frame() -> pl.DataFrame:
+    """Several single-column blocks (ties under any size-based ordering), a
+    two-column block, and names mixing case, digits and underscores."""
+    return pl.DataFrame(
+        {
+            config.PRODUCT_COL: ["W", "W", "C", "H", "C"],
+            "card2": [1.0, None, 3.0, 4.0, 5.0],
+            "V217": [None, 1.0, None, 2.0, 3.0],
+            "V22": [None, None, None, 2.0, 3.0],
+            "id_01": [None, None, 1.0, 1.0, None],
+            "M5": [1, None, None, 2, 3],
+            "M4": [1, None, None, 2, 3],
+            "dist1": [1.0, 2.0, None, None, None],
+        }
     )
 
-    forward = build_null_blocks(df)
-    reversed_ = build_null_blocks(df.select(reversed(df.columns)))
 
-    def as_sets(blocks):
-        return sorted((sorted(b["columns"]), b["kind"]) for b in blocks)
+@pytest.mark.parametrize("seed", range(5))
+def test_block_names_and_members_do_not_depend_on_column_order(seed):
+    """Regression guard. Positional names (block_00, block_01, ...) change when
+    the frame's columns are reordered, silently changing what has_block_NN
+    means. Content-derived names must not."""
+    import random
 
-    assert as_sets(forward) == as_sets(reversed_)
+    df = order_test_frame()
+    shuffled = df.columns.copy()
+    random.Random(seed).shuffle(shuffled)
+
+    original = build_null_blocks(df)
+    reordered = build_null_blocks(df.select(shuffled))
+
+    assert [(b["name"], b["columns"]) for b in reordered] == [(b["name"], b["columns"]) for b in original]
+    assert reordered == original
+
+
+def test_blocks_named_after_first_column_and_sorted_by_name():
+    blocks = build_null_blocks(order_test_frame())
+    names = [b["name"] for b in blocks]
+
+    assert names == sorted(names)
+    for b in blocks:
+        assert b["columns"] == sorted(b["columns"])
+        assert b["name"] == f"block_{b['columns'][0]}"
+    assert next(b for b in blocks if "M5" in b["columns"])["name"] == "block_M4"
+    assert {"block_V217", "block_V22", "block_card2", "block_id_01", "block_dist1"} <= set(names)
 
 
 @pytest.mark.parametrize(
@@ -107,7 +138,7 @@ def test_real_device_info_block_is_non_w_only(real_blocks):
 
 # Spelled out here rather than imported, so changing the schema in code
 # without updating this spec fails a test.
-REQUIRED_KEYS = {"columns", "n_columns", "null_rate", "kind", "null_rate_by_product"}
+REQUIRED_KEYS = {"name", "columns", "n_columns", "null_rate", "kind", "null_rate_by_product"}
 
 
 def test_build_null_blocks_writes_the_documented_keys():
@@ -134,3 +165,6 @@ def test_committed_null_blocks_file_exists_and_is_well_formed():
         assert not missing, f"block {i} is missing {sorted(missing)}"
         assert entry["kind"] in KINDS, f"block {i} has unknown kind {entry['kind']!r}"
         assert entry["n_columns"] == len(entry["columns"]), f"block {i}: n_columns != len(columns)"
+        assert entry["name"] == f"block_{min(entry['columns'])}", f"block {i}: name not derived from columns"
+    names = [b["name"] for b in blocks]
+    assert names == sorted(names), "blocks must be sorted by name"

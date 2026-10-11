@@ -38,7 +38,7 @@ from pathlib import Path
 import polars as pl
 
 from ml import config
-from ml.data import get_split_metadata, load_split_ids, load_transactions
+from ml.data import features_path, get_split_metadata, load_split_ids, load_transactions
 from ml.features.aggregates import add_entity_aggregates
 from ml.features.availability import add_availability_flags, get_source_columns
 from ml.features.time import add_time_features
@@ -77,12 +77,9 @@ def source_columns() -> list[str]:
         config.D1_COL,  # D1n, a uid component, is derived from it
         *config.UID_COARSE_COMPONENTS,
         *get_source_columns(),
+        *config.CATEGORICAL_RAW_COLS,  # model inputs, carried through as-is
     ]
     return list(dict.fromkeys(wanted))  # de-duplicate, keep order
-
-
-def features_path(split: str) -> Path:
-    return config.PROCESSED_DIR / f"{split}_features.parquet"
 
 
 def build_features(split: str) -> pl.LazyFrame:
