@@ -12,6 +12,15 @@ Writes ml.config.NULL_BLOCKS_PATH.
 Columns are referenced by name throughout, never by position. The column count
 changes as features are added, and positional indexing into a numpy array
 breaks silently when it does.
+
+Blocks are identified by content, not position. Each block's columns are
+sorted, and the block is named after the first one: block_V217, block_card2,
+block_id_01. Blocks are then sorted by name. Every column belongs to exactly
+one block, so names are unique, and they depend only on which columns null
+together -- not on the frame's column order, the machine, or upstream column
+reordering. Downstream flags (has_block_V217) therefore keep their meaning
+when the file is regenerated. Sorting is plain string order, so uppercase
+sorts before lowercase ("V217" < "card2").
 """
 
 import json
@@ -29,7 +38,7 @@ MIXED = "mixed"
 KINDS = (UNIFORM, W_ONLY, NON_W_ONLY, MIXED)
 
 # Keys every entry in the blocks file has. Readers validate against this.
-BLOCK_KEYS = ("columns", "n_columns", "null_rate", "kind", "null_rate_by_product")
+BLOCK_KEYS = ("name", "columns", "n_columns", "null_rate", "kind", "null_rate_by_product")
 
 REGENERATE_COMMAND = "python -m ml.analysis.null_blocks"
 
@@ -42,15 +51,22 @@ def null_mask_hashes(masks: pl.DataFrame) -> dict[str, str]:
     }
 
 
-def group_columns_by_null_pattern(masks: pl.DataFrame) -> list[list[str]]:
+def block_name(columns: list[str]) -> str:
+    """A block's identity: block_ + its alphabetically first column."""
+    return f"block_{min(columns)}"
+
+
+def group_columns_by_null_pattern(masks: pl.DataFrame) -> dict[str, list[str]]:
     """Group column names whose null masks are identical.
 
-    Blocks and the columns inside them keep the frame's column order.
+    Returns {block name: sorted columns}, ordered by block name. Neither the
+    names nor the order depend on the frame's column order.
     """
-    blocks: dict[str, list[str]] = {}
-    for name, digest in null_mask_hashes(masks).items():
-        blocks.setdefault(digest, []).append(name)
-    return list(blocks.values())
+    groups: dict[str, list[str]] = {}
+    for column, digest in null_mask_hashes(masks).items():
+        groups.setdefault(digest, []).append(column)
+    blocks = {block_name(cols): sorted(cols) for cols in groups.values()}
+    return dict(sorted(blocks.items()))
 
 
 def classify_block(rate_by_product: dict[str, float]) -> str:
@@ -90,9 +106,9 @@ def build_null_blocks(df: pl.DataFrame | pl.LazyFrame) -> list[dict]:
     blocks = group_columns_by_null_pattern(masks)
 
     # Every column in a block has the same mask, so its first column stands in
-    # for the whole block. Aggregates are aliased by block number so a block
+    # for the whole block. Aggregates are aliased by block name so a block
     # whose representative is ProductCD itself does not clash with the group key.
-    representatives = {f"block_{i}": cols[0] for i, cols in enumerate(blocks)}
+    representatives = {name: cols[0] for name, cols in blocks.items()}
 
     by_product = (
         lf.group_by(config.PRODUCT_COL)
@@ -107,10 +123,11 @@ def build_null_blocks(df: pl.DataFrame | pl.LazyFrame) -> list[dict]:
     products = [str(p) for p in by_product[config.PRODUCT_COL]]
 
     result = []
-    for key, cols in zip(representatives, blocks):
+    for key, cols in blocks.items():
         rate_by_product = dict(zip(products, by_product[key].to_list()))
         result.append(
             {
+                "name": key,
                 "columns": cols,
                 "n_columns": len(cols),
                 "null_rate": overall[key],

@@ -80,9 +80,9 @@ def write_dataset(root, train_only: bool = False) -> None:
     (root / "null_blocks.json").write_text(
         json.dumps(
             [
-                {**block, "columns": [config.ID_COL], "kind": "uniform"},
-                {**block, "columns": ["M4"], "kind": "mixed"},
-                {**block, "columns": [config.RARE_ID_COL], "kind": "mixed"},
+                {**block, "name": f"block_{config.ID_COL}", "columns": [config.ID_COL], "kind": "uniform"},
+                {**block, "name": "block_M4", "columns": ["M4"], "kind": "mixed"},
+                {**block, "name": f"block_{config.RARE_ID_COL}", "columns": [config.RARE_ID_COL], "kind": "mixed"},
             ]
         )
     )
@@ -163,7 +163,7 @@ def test_expected_feature_columns_present(built):
         assert f"{entity}_txn_count_prior" in cols
         assert f"{entity}_txn_count_7d" in cols
     assert {"day", "hour", "D1n", "uid", "uid_coarse", "uid_tier"} <= cols
-    assert {"has_block_01", "has_block_02", config.RARE_ID_FLAG} <= cols
+    assert {"has_block_M4", f"has_block_{config.RARE_ID_COL}", config.RARE_ID_FLAG} <= cols
 
 
 def test_run_writes_parquet_and_logs_stages(synthetic, caplog):

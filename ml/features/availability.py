@@ -21,7 +21,7 @@ from typing import TypeVar
 import polars as pl
 
 from ml import config
-from ml.analysis.null_blocks import BLOCK_KEYS, KINDS, MIXED, REGENERATE_COMMAND
+from ml.analysis.null_blocks import BLOCK_KEYS, KINDS, MIXED, REGENERATE_COMMAND, block_name
 
 Frame = TypeVar("Frame", pl.DataFrame, pl.LazyFrame)
 
@@ -52,13 +52,20 @@ def _read_blocks(blocks_path: Path | None) -> list[dict]:
             raise ValueError(f"Block {i} in {path} is missing keys {missing}\n{fix}")
         if block["kind"] not in KINDS:
             raise ValueError(f"Block {i} in {path} has unknown kind {block['kind']!r}\n{fix}")
+        # A name that doesn't match its columns means a hand-edited file or one
+        # from an older naming scheme; either way its flag names can't be trusted.
+        if block["name"] != block_name(block["columns"]):
+            raise ValueError(
+                f"Block {i} in {path} is named {block['name']!r} but its columns "
+                f"give {block_name(block['columns'])!r}\n{fix}"
+            )
     return blocks
 
 
-def _flag_name(block_index: int) -> str:
-    # Numbered by position in the blocks file, not among mixed blocks only, so
-    # has_block_07 always refers to entry 7 of null_blocks.json.
-    return f"has_block_{block_index:02d}"
+def _flag_name(block: dict) -> str:
+    # Derived from the block's content-based name, never its position in the
+    # file, so has_block_V217 means the same thing after any regeneration.
+    return f"has_{block['name']}"
 
 
 def _flagged_blocks(blocks: list[dict]) -> dict[str, str]:
@@ -68,8 +75,8 @@ def _flagged_blocks(blocks: list[dict]) -> dict[str, str]:
     for the rest.
     """
     return {
-        _flag_name(i): block["columns"][0]
-        for i, block in enumerate(blocks)
+        _flag_name(block): min(block["columns"])
+        for block in sorted(blocks, key=lambda b: b["name"])
         if block["kind"] == MIXED
     }
 
@@ -85,7 +92,7 @@ def get_flag_columns(blocks_path: Path | None = None) -> list[str]:
 
 
 def add_availability_flags(df: Frame, blocks_path: Path | None = None) -> Frame:
-    """Add a boolean has_block_NN flag per mixed block, plus has_rare_id_block.
+    """Add a boolean has_block_<column> flag per mixed block, plus has_rare_id_block.
 
     Each flag is True where that block's data is present. blocks_path
     defaults to ml.config.NULL_BLOCKS_PATH.

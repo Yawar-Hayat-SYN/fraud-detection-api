@@ -45,7 +45,7 @@ def test_identifiers_label_entity_keys_and_absolute_time_are_not_features(traine
     # Entity aggregates stay even though the raw keys go.
     for entity in config.AGG_ENTITIES:
         assert f"{entity}_txn_count_prior" in features
-    assert {"hour", "dayofweek", "has_block_01", config.RARE_ID_FLAG} <= set(features)
+    assert {"hour", "dayofweek", "has_block_M4", config.RARE_ID_FLAG} <= set(features)
 
 
 def test_categoricals_recorded_with_training_levels(trained, features):
